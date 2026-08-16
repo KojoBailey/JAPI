@@ -36,8 +36,21 @@ void launcher::init_gui() {
 				return imGuiResult;
 			}
 
-			if (msg == WM_DESTROY) {
+			auto* p_launcher = reinterpret_cast<launcher*>(GetWindowLongPtr(hWnd, GWLP_USERDATA));
+
+			switch (msg) {
+			case WM_DESTROY:
 				PostQuitMessage(0);
+				return 0;
+			case WM_SIZE:
+				if (p_launcher != nullptr) {
+					p_launcher->is_minimized = (wParam == SIZE_MINIMIZED);
+					if (not p_launcher->is_minimized) {
+						UINT new_width = LOWORD(lParam);
+						UINT new_height = HIWORD(lParam);
+						p_launcher->resize_render_target(new_width, new_height);
+					}
+				}
 				return 0;
 			}
 
@@ -63,6 +76,7 @@ void launcher::init_gui() {
 		nullptr, // parent window
 		nullptr, windowClass.hInstance, nullptr
 	);
+	SetWindowLongPtr(hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
 
     create_d3d_device(hwnd);
     ShowWindow(hwnd, SW_SHOWDEFAULT);
@@ -81,49 +95,92 @@ void launcher::init_gui() {
     ImGui_ImplDX11_Init(d3dDevice, d3dDeviceContext);
 }
 
-void launcher::update_gui() {
-	bool isDone = false;
-	while (not isDone) {
-		MSG msg;
-		while (PeekMessage(&msg, nullptr, 0U, 0U, PM_REMOVE)) {
-			TranslateMessage(&msg);
-			DispatchMessage(&msg);
-			isDone = (msg.message == WM_QUIT);
-		}
-		if (isDone) break;
+void launcher::resize_render_target(UINT new_width, UINT new_height) {
+	// NOTE: Occurs if window is minimized.
+	if (new_width == 0 || new_height == 0) return;
 
-		ImGui_ImplDX11_NewFrame();
-		ImGui_ImplWin32_NewFrame();
-		ImGui::NewFrame();
+	d3dDeviceContext->OMSetRenderTargets(0, nullptr, nullptr);
 
-		ImGuiViewport* vp = ImGui::GetMainViewport();
-		ImGui::SetNextWindowPos(vp->WorkPos);
-		ImGui::SetNextWindowSize(vp->WorkSize);
-		ImGui::Begin("main", nullptr,
-			ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
-			ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse |
-			ImGuiWindowFlags_NoScrollbar);
-
-		ImGui::PushFont(mainFont);
-		const char* text = "JoJoAPI";
-		ImVec2 textSize = ImGui::CalcTextSize(text);
-		ImVec2 winSize = ImGui::GetWindowSize();
-		ImGui::SetCursorPos(ImVec2(
-			(winSize.x - textSize.x) * 0.5f,
-			(winSize.y - textSize.y) * 0.5f));
-		ImGui::Text("%s", text);
-		ImGui::PopFont();
-
-		ImGui::End();
-		ImGui::Render();
-
-		const float clearColor[4] = { 1, 1, 1, 1 };
-		d3dDeviceContext->OMSetRenderTargets(1, &mainRenderTargetView, nullptr);
-		d3dDeviceContext->ClearRenderTargetView(mainRenderTargetView, clearColor);
-		ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
-
-		swapChain->Present(1, 0);
+	if (mainRenderTargetView != nullptr) {
+		mainRenderTargetView->Release();
+		mainRenderTargetView = nullptr;
 	}
+
+	HRESULT hr = swapChain->ResizeBuffers(0, new_width, new_height, DXGI_FORMAT_UNKNOWN, 0);
+	if (FAILED(hr)) {
+		JERROR("Failed to resize buffers on swap chain: 0x%08X", hr);
+		return;
+	}
+
+	ID3D11Texture2D* back_buffer = nullptr;
+	swapChain->GetBuffer(0, IID_PPV_ARGS(&back_buffer));
+	d3dDevice->CreateRenderTargetView(back_buffer, nullptr, &mainRenderTargetView);
+	back_buffer->Release();
+}
+
+launcher::quit_status launcher::update_gui() {
+	MSG msg;
+	while (PeekMessage(&msg, nullptr, 0U, 0U, PM_REMOVE)) {
+		TranslateMessage(&msg);
+		DispatchMessage(&msg);
+
+		switch (msg.message) {
+		case WM_QUIT:
+			return quit_status::QUIT;
+		case WM_SIZE:
+			is_minimized = (msg.wParam == SIZE_MINIMIZED);
+			if (not is_minimized) {
+				UINT new_width = LOWORD(msg.lParam);
+				UINT new_height = HIWORD(msg.lParam);
+				resize_render_target(new_width, new_height);
+			}
+		}
+	}
+
+	if (is_minimized) {
+		Sleep(10);
+		return quit_status::CONTINUE;
+	}
+
+	ImGui_ImplDX11_NewFrame();
+	ImGui_ImplWin32_NewFrame();
+	ImGui::NewFrame();
+
+	render_ui();
+
+	ImGui::Render();
+
+	const float clearColor[4] = { 1, 1, 1, 1 };
+	d3dDeviceContext->OMSetRenderTargets(1, &mainRenderTargetView, nullptr);
+	d3dDeviceContext->ClearRenderTargetView(mainRenderTargetView, clearColor);
+	ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+	swapChain->Present(1, 0);
+
+
+	return quit_status::CONTINUE;
+}
+
+void launcher::render_ui() {
+	ImGuiViewport* vp = ImGui::GetMainViewport();
+	ImGui::SetNextWindowPos(vp->WorkPos);
+	ImGui::SetNextWindowSize(vp->WorkSize);
+
+	ImGui::Begin("main", nullptr,
+		ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+		ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse |
+		ImGuiWindowFlags_NoScrollbar);
+
+	ImGui::PushFont(mainFont);
+	const char* text = "JoJoAPI";
+	ImVec2 textSize = ImGui::CalcTextSize(text);
+	ImVec2 winSize = ImGui::GetWindowSize();
+	ImGui::SetCursorPos(ImVec2(
+		(winSize.x - textSize.x) * 0.5f,
+		(winSize.y - textSize.y) * 0.5f));
+	ImGui::Text("%s", text);
+	ImGui::PopFont();
+
+	ImGui::End();
 }
 
 void launcher::destroy_gui() {
@@ -155,7 +212,15 @@ void launcher::run() {
         check_for_updates();
     }
 
-    launch_game();
+	std::jthread game_thread([&] { launch_game(); });
+
+	while (true) {
+		quit_status qs = update_gui();
+		if (qs == quit_status::QUIT) {
+			break;
+		}
+	}
+	destroy_gui();
 }
 
 void launcher::check_for_updates() {
@@ -288,16 +353,11 @@ void launcher::launch_game() {
     process g_process(game_path.c_str(), current_path.c_str());
     logger::despawn_console();
 	
-	std::jthread game_thread([&] { 
-		do {
-			g_process.restart();
-			g_process.inject_dll(std::string(current_path + R"(\japi\dlls\JAPIPreload.dll)").c_str());
-			g_process.resume(true);
-		} while (g_process.get_exit_code() == 67);
-	});
-
-	update_gui();
-	destroy_gui();
+	do {
+		g_process.restart();
+		g_process.inject_dll(std::string(current_path + R"(\japi\dlls\JAPIPreload.dll)").c_str());
+		g_process.resume(true);
+	} while (g_process.get_exit_code() == 67);
 }
 
 bool launcher::create_d3d_device(HWND hWnd) {

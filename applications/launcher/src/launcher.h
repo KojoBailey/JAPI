@@ -25,8 +25,16 @@ public:
     void run();
 
 private:
+	enum class quit_status {
+		QUIT,
+		CONTINUE,
+	};
+
+	bool is_minimized{false};
+
 	void init_gui();
-	void update_gui();
+	quit_status update_gui();
+	void render_ui();
 	void destroy_gui();
 
     void check_for_updates();
@@ -35,6 +43,7 @@ private:
     void launch_game();
 
 	bool create_d3d_device(HWND hWnd);
+	void resize_render_target(UINT new_width, UINT new_height);
 
     config _cfg;
     downloader _dl;
