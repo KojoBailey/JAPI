@@ -4,6 +4,7 @@
 
 #ifndef JAPI_INSTALLER_H
 #define JAPI_INSTALLER_H
+
 #include <cstdint>
 #include <ctime>
 #include <vector>
