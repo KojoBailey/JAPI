@@ -4,10 +4,6 @@
 
 #include "launcher.h"
 
-#include "imgui/imgui.h"
-#include "imgui/imgui_impl_win32.h"
-#include "imgui/imgui_impl_dx11.h"
-
 #include <algorithm>
 #include <filesystem>
 
@@ -76,60 +72,13 @@ void launcher::run() {
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
 
-    ImFont* bigFont = io.Fonts->AddFontFromFileTTF("japi\\JetBrainsMono-Regular.ttf", 48.0f);
+    mainFont = io.Fonts->AddFontFromFileTTF("japi\\JetBrainsMono-Regular.ttf", 48.0f);
 
     ImGui::StyleColorsLight();
     ImGui::GetStyle().Colors[ImGuiCol_WindowBg] = ImVec4(1, 1, 1, 1);
 
     ImGui_ImplWin32_Init(hwnd);
     ImGui_ImplDX11_Init(d3dDevice, d3dDeviceContext);
-
-    bool isDone = false;
-    while (not isDone) {
-        MSG msg;
-        while (PeekMessage(&msg, nullptr, 0U, 0U, PM_REMOVE)) {
-            TranslateMessage(&msg);
-            DispatchMessage(&msg);
-            isDone = (msg.message == WM_QUIT);
-        }
-        if (isDone) break;
-
-        ImGui_ImplDX11_NewFrame();
-        ImGui_ImplWin32_NewFrame();
-        ImGui::NewFrame();
-
-        ImGuiViewport* vp = ImGui::GetMainViewport();
-        ImGui::SetNextWindowPos(vp->WorkPos);
-        ImGui::SetNextWindowSize(vp->WorkSize);
-        ImGui::Begin("main", nullptr,
-            ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
-            ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse |
-            ImGuiWindowFlags_NoScrollbar);
-
-        ImGui::PushFont(bigFont);
-        const char* text = "JoJoAPI";
-        ImVec2 textSize = ImGui::CalcTextSize(text);
-        ImVec2 winSize = ImGui::GetWindowSize();
-        ImGui::SetCursorPos(ImVec2(
-            (winSize.x - textSize.x) * 0.5f,
-            (winSize.y - textSize.y) * 0.5f));
-        ImGui::Text("%s", text);
-        ImGui::PopFont();
-
-        ImGui::End();
-        ImGui::Render();
-
-        const float clearColor[4] = { 1, 1, 1, 1 };
-        d3dDeviceContext->OMSetRenderTargets(1, &mainRenderTargetView, nullptr);
-        d3dDeviceContext->ClearRenderTargetView(mainRenderTargetView, clearColor);
-        ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
-
-        swapChain->Present(1, 0);
-    }
-
-    ImGui_ImplDX11_Shutdown();
-    ImGui_ImplWin32_Shutdown();
-    ImGui::DestroyContext();
 
     JINFO("Running launcher version %s", LAUNCHER_VERSION);
 
@@ -284,10 +233,54 @@ void launcher::launch_game() {
     process g_process(game_path.c_str(), current_path.c_str());
     logger::despawn_console();
     do {
+        MSG msg;
+        while (PeekMessage(&msg, nullptr, 0U, 0U, PM_REMOVE)) {
+            TranslateMessage(&msg);
+            DispatchMessage(&msg);
+            // isDone = (msg.message == WM_QUIT);
+        }
+        // if (isDone) break;
+
+        ImGui_ImplDX11_NewFrame();
+        ImGui_ImplWin32_NewFrame();
+        ImGui::NewFrame();
+
+        ImGuiViewport* vp = ImGui::GetMainViewport();
+        ImGui::SetNextWindowPos(vp->WorkPos);
+        ImGui::SetNextWindowSize(vp->WorkSize);
+        ImGui::Begin("main", nullptr,
+            ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+            ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoCollapse |
+            ImGuiWindowFlags_NoScrollbar);
+
+        ImGui::PushFont(mainFont);
+        const char* text = "JoJoAPI";
+        ImVec2 textSize = ImGui::CalcTextSize(text);
+        ImVec2 winSize = ImGui::GetWindowSize();
+        ImGui::SetCursorPos(ImVec2(
+            (winSize.x - textSize.x) * 0.5f,
+            (winSize.y - textSize.y) * 0.5f));
+        ImGui::Text("%s", text);
+        ImGui::PopFont();
+
+        ImGui::End();
+        ImGui::Render();
+
+        const float clearColor[4] = { 1, 1, 1, 1 };
+        d3dDeviceContext->OMSetRenderTargets(1, &mainRenderTargetView, nullptr);
+        d3dDeviceContext->ClearRenderTargetView(mainRenderTargetView, clearColor);
+        ImGui_ImplDX11_RenderDrawData(ImGui::GetDrawData());
+
+        swapChain->Present(1, 0);
+
         g_process.restart();
         g_process.inject_dll(std::string(current_path + R"(\japi\dlls\JAPIPreload.dll)").c_str());
         g_process.resume(true);
     } while (g_process.get_exit_code() == 67);
+
+    ImGui_ImplDX11_Shutdown();
+    ImGui_ImplWin32_Shutdown();
+    ImGui::DestroyContext();
 }
 
 bool launcher::create_d3d_device(HWND hWnd) {
