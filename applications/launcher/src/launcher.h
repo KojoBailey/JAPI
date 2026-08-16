@@ -25,6 +25,10 @@ public:
     void run();
 
 private:
+	void init_gui();
+	void update_gui();
+	void destroy_gui();
+
     void check_for_updates();
     void install_japi(const std::string& update_file_name);
     void cleanup_old_files();
