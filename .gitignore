@@ -1,4 +1,4 @@
-cmake-build-debug/
+cmake-*/
 binaries/
 keys/
 release_package/out/
@@ -6,3 +6,5 @@ release_package/out/
 .idea/
 .vs/
 .vscode/
+
+CMakeFiles/
