@@ -6,11 +6,11 @@
 
 #include <algorithm>
 #include <fstream>
-#include <logger.h>
-#include <miniz.h>
+#include "logger.h"
+#include "miniz.h"
 
 #include "downloader.h"
-#include "json.hpp"
+#include "nlohmann/json.hpp"
 
 using json = nlohmann::json;
 

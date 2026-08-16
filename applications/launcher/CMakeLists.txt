@@ -29,8 +29,7 @@ add_executable(${PROJECT_NAME}
 
 
 target_include_directories(${PROJECT_NAME} PRIVATE
-	src
-	../../external/nlohmann
+	${CMAKE_SOURCE_DIR}/external
 	${CMAKE_SOURCE_DIR}/libs
 )
 target_link_libraries(${PROJECT_NAME}
