@@ -1,5 +1,12 @@
 #include "kiero.h"
+
+// NOTE: Windows is case-insensitive whereas Linux is case-sensitive.
+#ifndef __MINGW32__
 #include <Windows.h>
+#else
+#include <windows.h>
+#endif
+
 #include <assert.h>
 
 #if KIERO_INCLUDE_D3D9
