@@ -12,8 +12,10 @@
 #include "imgui/imgui_impl_win32.h"
 #include "imgui/imgui_impl_dx11.h"
 
+#include <atomic>
 #include <ctime>
-#include <string_view>
+#include <string>
+#include <thread>
 
 #include "config.h"
 #include "downloader.h"
@@ -40,7 +42,7 @@ private:
     void check_for_updates();
     void install_japi(const std::string& update_file_name);
     void cleanup_old_files();
-    void launch_game();
+    void launch_game(bool should_launch_modded);
 
 	bool create_d3d_device(HWND hWnd);
 	void resize_render_target(UINT new_width, UINT new_height);
@@ -54,6 +56,9 @@ private:
 	ID3D11RenderTargetView* mainRenderTargetView;
 
 	ImFont* mainFont;
+
+	std::jthread game_thread;
+	std::atomic<bool> is_game_running{false};
 };
 
 #endif //JAPI_LAUNCHER_H

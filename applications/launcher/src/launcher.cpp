@@ -171,13 +171,19 @@ void launcher::render_ui() {
 		ImGuiWindowFlags_NoScrollbar);
 
 	ImGui::PushFont(mainFont);
-	const char* text = "JoJoAPI";
-	ImVec2 textSize = ImGui::CalcTextSize(text);
-	ImVec2 winSize = ImGui::GetWindowSize();
-	ImGui::SetCursorPos(ImVec2(
-		(winSize.x - textSize.x) * 0.5f,
-		(winSize.y - textSize.y) * 0.5f));
-	ImGui::Text("%s", text);
+
+	ImGui::Text("JoJoAPI");
+	if (not is_game_running) {
+		if (ImGui::Button("Launch Game")) {
+			game_thread = std::jthread{[this] { launch_game(true); }};
+		}
+		if (ImGui::Button("Launch Vanilla")) {
+			game_thread = std::jthread{[this] { launch_game(false); }};
+		}
+	} else {
+		ImGui::Text("Game is running...");
+	}
+
 	ImGui::PopFont();
 
 	ImGui::End();
@@ -212,14 +218,13 @@ void launcher::run() {
         check_for_updates();
     }
 
-	std::jthread game_thread([&] { launch_game(); });
-
 	while (true) {
 		quit_status qs = update_gui();
 		if (qs == quit_status::QUIT) {
 			break;
 		}
 	}
+
 	destroy_gui();
 }
 
@@ -340,7 +345,7 @@ void launcher::cleanup_old_files() {
     }
 }
 
-void launcher::launch_game() {
+void launcher::launch_game(bool should_launch_modded) {
     // Get current PWD
 #ifdef DEBUG_MODE
     const std::string current_path = R"(C:\Program Files (x86)\Steam\steamapps\common\JoJo's Bizarre Adventure All-Star Battle R)";
@@ -348,16 +353,22 @@ void launcher::launch_game() {
     const std::string current_path = std::filesystem::current_path().string();
 #endif
 
-    const std::string game_path = current_path + R"(\japi\bin\unpacked.exe)";
+    const std::string game_path = current_path +
+		(should_launch_modded ? R"(\japi\bin\unpacked.exe)" : R"(\ASBR.exe)");
 
+	is_game_running = true;
     process g_process(game_path.c_str(), current_path.c_str());
     logger::despawn_console();
 	
 	do {
 		g_process.restart();
-		g_process.inject_dll(std::string(current_path + R"(\japi\dlls\JAPIPreload.dll)").c_str());
+		if (should_launch_modded) {
+			g_process.inject_dll(std::string(current_path + R"(\japi\dlls\JAPIPreload.dll)").c_str());
+		}
 		g_process.resume(true);
 	} while (g_process.get_exit_code() == 67);
+
+	is_game_running = false;
 }
 
 bool launcher::create_d3d_device(HWND hWnd) {
