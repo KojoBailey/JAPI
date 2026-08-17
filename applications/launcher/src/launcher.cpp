@@ -174,6 +174,8 @@ void launcher::render_ui() {
 
 	ImGui::Text("JoJoAPI");
 
+	// BUG: Launches fine in normal case, but crashes unexpectedly
+	// when using or accessing JAPILauncher from another directory.
 	if (ImGui::InputText("Game Directory Path",
 			game_directory_path_buffer, sizeof(game_directory_path_buffer),
 			ImGuiInputTextFlags_EnterReturnsTrue
