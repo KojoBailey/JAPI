@@ -14,6 +14,7 @@
 
 #include <atomic>
 #include <ctime>
+#include <filesystem>
 #include <string>
 #include <thread>
 
@@ -49,6 +50,9 @@ private:
 
     config _cfg;
     downloader _dl;
+
+	std::filesystem::path game_directory;
+	char game_directory_path_buffer[256];
 
 	ID3D11Device* d3dDevice;
 	ID3D11DeviceContext* d3dDeviceContext;

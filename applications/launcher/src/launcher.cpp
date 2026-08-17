@@ -86,7 +86,7 @@ void launcher::init_gui() {
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
 
-    mainFont = io.Fonts->AddFontFromFileTTF("japi\\JetBrainsMono-Regular.ttf", 48.0f);
+    mainFont = io.Fonts->AddFontFromFileTTF((game_directory / "japi\\JetBrainsMono-Regular.ttf").string().c_str(), 24.0f);
 
     ImGui::StyleColorsLight();
     ImGui::GetStyle().Colors[ImGuiCol_WindowBg] = ImVec4(1, 1, 1, 1);
@@ -173,6 +173,14 @@ void launcher::render_ui() {
 	ImGui::PushFont(mainFont);
 
 	ImGui::Text("JoJoAPI");
+
+	if (ImGui::InputText("Game Directory Path",
+			game_directory_path_buffer, sizeof(game_directory_path_buffer),
+			ImGuiInputTextFlags_EnterReturnsTrue
+	)) {
+		game_directory = std::filesystem::path{game_directory_path_buffer};
+	}
+
 	if (not is_game_running) {
 		if (ImGui::Button("Launch Game")) {
 			game_thread = std::jthread{[this] { launch_game(true); }};
@@ -196,6 +204,15 @@ void launcher::destroy_gui() {
 }
 
 void launcher::run() {
+	// TODO: Fetch from config.
+	game_directory = std::filesystem::current_path();
+	std::string game_directory_str = game_directory.string();
+	if (game_directory_str.size() >= 256) {
+		JFATAL("Game directory path is too long. Must be under 256 chars.");
+		return;
+	}
+	std::strcpy(game_directory_path_buffer, game_directory_str.c_str());
+
 	init_gui();
 
     JINFO("Running launcher version %s", LAUNCHER_VERSION);
@@ -346,24 +363,21 @@ void launcher::cleanup_old_files() {
 }
 
 void launcher::launch_game(bool should_launch_modded) {
-    // Get current PWD
 #ifdef DEBUG_MODE
-    const std::string current_path = R"(C:\Program Files (x86)\Steam\steamapps\common\JoJo's Bizarre Adventure All-Star Battle R)";
-#else
-    const std::string current_path = std::filesystem::current_path().string();
+    game_directory = R"(C:\Program Files (x86)\Steam\steamapps\common\JoJo's Bizarre Adventure All-Star Battle R)";
 #endif
 
-    const std::string game_path = current_path +
-		(should_launch_modded ? R"(\japi\bin\unpacked.exe)" : R"(\ASBR.exe)");
+    const std::filesystem::path game_path = game_directory /
+		(should_launch_modded ? R"(japi\bin\unpacked.exe)" : R"(ASBR.exe)");
 
 	is_game_running = true;
-    process g_process(game_path.c_str(), current_path.c_str());
+    process g_process(game_path.string().c_str(), game_directory.string().c_str());
     logger::despawn_console();
 	
 	do {
 		g_process.restart();
 		if (should_launch_modded) {
-			g_process.inject_dll(std::string(current_path + R"(\japi\dlls\JAPIPreload.dll)").c_str());
+			g_process.inject_dll((game_directory / R"(japi\dlls\JAPIPreload.dll)").string().c_str());
 		}
 		g_process.resume(true);
 	} while (g_process.get_exit_code() == 67);
